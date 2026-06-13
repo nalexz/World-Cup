@@ -431,8 +431,86 @@ COLORS = {
 }
 RANK_CLS = ["n1", "n2", "n3", ""]
 RANK_SYMS = ["1", "2", "3", "4"]
-DATA_FILE = "data.json"
+DATA_FILE = "data.json"   # only used for local dev fallback
 API_BASE = "https://api.football-data.org/v4"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PERSISTENT STORAGE VIA GITHUB GIST
+# Reads GIST_ID and GITHUB_TOKEN from st.secrets (set these in Streamlit Cloud
+# settings) or from environment variables (for local dev).
+# The Gist must contain a file called data.json.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _gist_creds():
+    """Return (gist_id, token) from st.secrets or env."""
+    try:
+        gist_id = st.secrets["GIST_ID"]
+        token   = st.secrets["GITHUB_TOKEN"]
+    except Exception:
+        gist_id = os.environ.get("GIST_ID", "")
+        token   = os.environ.get("GITHUB_TOKEN", "")
+    return gist_id.strip(), token.strip()
+
+def load():
+    """Load predictions from GitHub Gist, falling back to local file."""
+    gist_id, token = _gist_creds()
+    empty = {"predictions": {}, "points": {p: 0 for p in PLAYERS}}
+
+    if gist_id and token:
+        try:
+            r = requests.get(
+                f"https://api.github.com/gists/{gist_id}",
+                headers={
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github+json",
+                },
+                timeout=10,
+            )
+            if r.status_code == 200:
+                raw_content = r.json()["files"]["data.json"]["content"]
+                return json.loads(raw_content)
+            else:
+                st.warning(f"Gist load failed ({r.status_code}), using local fallback.")
+        except Exception as e:
+            st.warning(f"Gist load error: {e}, using local fallback.")
+
+    # Local fallback (works in VS Code / local dev even without Gist creds)
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE) as f:
+            return json.load(f)
+    return empty
+
+def save(d):
+    """Save predictions to GitHub Gist (cloud) and local file (local dev)."""
+    gist_id, token = _gist_creds()
+    payload = json.dumps(d, indent=2)
+
+    if gist_id and token:
+        try:
+            r = requests.patch(
+                f"https://api.github.com/gists/{gist_id}",
+                headers={
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github+json",
+                    "Content-Type": "application/json",
+                },
+                data=json.dumps({
+                    "files": {
+                        "data.json": {"content": payload}
+                    }
+                }),
+                timeout=10,
+            )
+            if r.status_code not in (200, 201):
+                st.warning(f"Gist save failed ({r.status_code}).")
+        except Exception as e:
+            st.warning(f"Gist save error: {e}.")
+
+    # Always keep a local copy too (harmless in cloud, useful locally)
+    with open(DATA_FILE, "w") as f:
+        f.write(payload)
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 if "selected_match_id" not in st.session_state:
     st.session_state.selected_match_id = None
@@ -442,6 +520,10 @@ if "selected_outcome" not in st.session_state:
     st.session_state.selected_outcome = "home"
 
 def get_api_key():
+    try:
+        return st.secrets["FOOTBALL_API_KEY"].strip()
+    except Exception:
+        pass
     key = os.environ.get("FOOTBALL_API_KEY", "")
     if not key and os.path.exists(".env"):
         with open(".env") as f:
@@ -475,7 +557,7 @@ def parse_match(m):
         ds = datetime.strptime(m.get("utcDate", "")[:10], "%Y-%m-%d").strftime("%d %b")
     except:
         ds = m.get("utcDate", "")[:10]
-        
+
     grp_raw = m.get("group", "") or ""
     grp_short = grp_raw.replace("GROUP_", "") if grp_raw else ""
 
@@ -490,16 +572,6 @@ def parse_match(m):
         "stage": m.get("stage", "GROUP_STAGE"),
         "group": grp_short
     }
-
-def load():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE) as f:
-            return json.load(f)
-    return {"predictions": {}, "points": {p: 0 for p in PLAYERS}}
-
-def save(d):
-    with open(DATA_FILE, "w") as f:
-        json.dump(d, f, indent=2)
 
 def result(h, a):
     if h is None or a is None:
@@ -629,7 +701,6 @@ with col_l:
     st.markdown('<div style="height:0.4rem"></div>', unsafe_allow_html=True)
     st.markdown('<div class="s-head">Make a Prediction</div>', unsafe_allow_html=True)
 
-    # KEY FIX: include "TIMED" status
     predictable = [m for m in matches if m["status"] in ("SCHEDULED", "TIMED", "IN_PLAY", "PAUSED")]
 
     if not predictable:
