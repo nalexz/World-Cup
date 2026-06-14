@@ -776,12 +776,13 @@ with col_l:
 
 with col_r:
     st.markdown('<div class="s-head">All Matches</div>', unsafe_allow_html=True)
-for m in matches:
-    st.write(f"{m['home']} vs {m['away']} — ID: {m['id']}")
     if st.button("↺ Refresh scores", key="rb"):
         st.cache_data.clear()
         st.rerun()
 
+    for m in matches:
+        st.write(f"{m['home']} vs {m['away']} — ID: {m['id']}")
+    
     STAGE_ORDER = ["GROUP_STAGE", "ROUND_OF_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "THIRD_PLACE", "FINAL"]
     STAGE_LABELS = {
         "GROUP_STAGE": "Group Stage",
