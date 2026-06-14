@@ -807,51 +807,6 @@ with col_l:
             else:
                 st.markdown('<div style="color:rgba(255,255,255,0.2);font-size:0.78rem;margin-bottom:12px">No predictions yet</div>', unsafe_allow_html=True)
 
-    st.markdown('<div style="height:0.4rem"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="s-head">Group Standings</div>', unsafe_allow_html=True)
-
-    group_standings = build_group_standings(matches)
-    if group_standings:
-        grp_html = '<div class="grp-wrap">'
-        for grp, teams in group_standings.items():
-            grp_html += f'''
-            <div class="grp-card">
-              <div class="grp-title">Group {grp}</div>
-              <table class="grp-table">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th class="th-team">Team</th>
-                    <th>P</th>
-                    <th>W</th>
-                    <th>D</th>
-                    <th>L</th>
-                    <th>GD</th>
-                    <th>Pts</th>
-                  </tr>
-                </thead>
-                <tbody>'''
-            for i, (team, row) in enumerate(teams):
-                qualify_cls = "grp-qualify" if i < 2 else ""
-                pos_cls = f"gp{i+1}" if i < 2 else ""
-                gd = f"+{row['GD']}" if row['GD'] > 0 else str(row['GD'])
-                grp_html += f'''
-                  <tr class="{qualify_cls}">
-                    <td class="grp-pos {pos_cls}">{i+1}</td>
-                    <td class="td-team">{team}</td>
-                    <td>{row['P']}</td>
-                    <td>{row['W']}</td>
-                    <td>{row['D']}</td>
-                    <td>{row['L']}</td>
-                    <td>{gd}</td>
-                    <td class="td-pts">{row['Pts']}</td>
-                  </tr>'''
-            grp_html += '</tbody></table></div>'
-        grp_html += '</div>'
-        st.markdown(grp_html, unsafe_allow_html=True)
-    else:
-        st.markdown('<div style="color:rgba(255,255,255,0.2);font-size:0.78rem;margin-bottom:12px">Group stage matches not started yet.</div>', unsafe_allow_html=True)
-
     st.markdown('<div class="s-head">Make a Prediction</div>', unsafe_allow_html=True)
 
     predictable = [m for m in matches if m["status"] in ("SCHEDULED", "TIMED", "IN_PLAY", "PAUSED")]
@@ -926,6 +881,51 @@ with col_l:
             st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div style="height:0.4rem"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="s-head">Group Standings</div>', unsafe_allow_html=True)
+
+    group_standings = build_group_standings(matches)
+    if group_standings:
+        grp_html = '<div class="grp-wrap">'
+        for grp, teams in group_standings.items():
+            grp_html += f'''
+            <div class="grp-card">
+              <div class="grp-title">Group {grp}</div>
+              <table class="grp-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th class="th-team">Team</th>
+                    <th>P</th>
+                    <th>W</th>
+                    <th>D</th>
+                    <th>L</th>
+                    <th>GD</th>
+                    <th>Pts</th>
+                  </tr>
+                </thead>
+                <tbody>'''
+            for i, (team, row) in enumerate(teams):
+                qualify_cls = "grp-qualify" if i < 2 else ""
+                pos_cls = f"gp{i+1}" if i < 2 else ""
+                gd = f"+{row['GD']}" if row['GD'] > 0 else str(row['GD'])
+                grp_html += f'''
+                  <tr class="{qualify_cls}">
+                    <td class="grp-pos {pos_cls}">{i+1}</td>
+                    <td class="td-team">{team}</td>
+                    <td>{row['P']}</td>
+                    <td>{row['W']}</td>
+                    <td>{row['D']}</td>
+                    <td>{row['L']}</td>
+                    <td>{gd}</td>
+                    <td class="td-pts">{row['Pts']}</td>
+                  </tr>'''
+            grp_html += '</tbody></table></div>'
+        grp_html += '</div>'
+        st.markdown(grp_html, unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="color:rgba(255,255,255,0.2);font-size:0.78rem;margin-bottom:12px">Group stage matches not started yet.</div>', unsafe_allow_html=True)
 
 with col_r:
     st.markdown('<div class="s-head">All Matches</div>', unsafe_allow_html=True)
