@@ -419,6 +419,76 @@ div[data-testid="stExpander"] {
     border-radius: 12px !important;
 }
 hr { border-color: rgba(255,255,255,0.05) !important; margin: 1.4rem 0 !important; }
+
+.grp-wrap {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.8rem;
+}
+.grp-card {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    overflow: hidden;
+}
+.grp-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.18em;
+    color: rgba(245,193,20,0.85);
+    padding: 8px 14px 7px;
+    background: rgba(245,193,20,0.05);
+    border-bottom: 1px solid rgba(245,193,20,0.1);
+}
+.grp-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.grp-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.2);
+    padding: 5px 8px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.grp-table th.th-team { text-align: left; padding-left: 14px; }
+.grp-table td {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.6);
+    padding: 7px 8px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-family: 'Space Mono', monospace;
+}
+.grp-table tr:last-child td { border-bottom: none; }
+.grp-table td.td-team {
+    text-align: left;
+    padding-left: 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e8e4dc;
+}
+.grp-table td.td-pts {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    color: #f5c114;
+    letter-spacing: 0.06em;
+}
+.grp-table tr.grp-qualify { background: rgba(74,222,128,0.04); }
+.grp-pos {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.18);
+    width: 18px;
+    text-align: right;
+    padding-right: 6px !important;
+}
+.grp-pos.gp1, .grp-pos.gp2 { color: rgba(74,222,128,0.5); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -600,6 +670,45 @@ def recalc(data, matches):
                 totals[p] += calc_pts(pr, m)
     data["points"] = totals
 
+def build_group_standings(matches):
+    """Build group standings from finished match results."""
+    groups = {}
+    for m in matches:
+        grp = m.get("group")
+        if not grp or m.get("stage") != "GROUP_STAGE":
+            continue
+        if grp not in groups:
+            groups[grp] = {}
+        for team, opp, gs, ga in [
+            (m["home"], m["away"], m["hs"], m["as"]),
+            (m["away"], m["home"], m["as"], m["hs"]),
+        ]:
+            if team not in groups[grp]:
+                groups[grp][team] = {"P": 0, "W": 0, "D": 0, "L": 0, "GF": 0, "GA": 0, "GD": 0, "Pts": 0}
+            row = groups[grp][team]
+            if m["status"] == "FINISHED" and gs is not None and ga is not None:
+                row["P"] += 1
+                row["GF"] += gs
+                row["GA"] += ga
+                row["GD"] += gs - ga
+                if gs > ga:
+                    row["W"] += 1
+                    row["Pts"] += 3
+                elif gs == ga:
+                    row["D"] += 1
+                    row["Pts"] += 1
+                else:
+                    row["L"] += 1
+    # Sort each group by Pts desc, then GD desc, then GF desc
+    sorted_groups = {}
+    for grp, teams in sorted(groups.items()):
+        sorted_groups[grp] = sorted(
+            teams.items(),
+            key=lambda x: (x[1]["Pts"], x[1]["GD"], x[1]["GF"]),
+            reverse=True
+        )
+    return sorted_groups
+
 def ol(o):
     return {"home": "Home wins", "away": "Away wins", "draw": "Draw"}.get(o, o)
 
@@ -699,6 +808,50 @@ with col_l:
                 st.markdown('<div style="color:rgba(255,255,255,0.2);font-size:0.78rem;margin-bottom:12px">No predictions yet</div>', unsafe_allow_html=True)
 
     st.markdown('<div style="height:0.4rem"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="s-head">Group Standings</div>', unsafe_allow_html=True)
+
+    group_standings = build_group_standings(matches)
+    if group_standings:
+        grp_html = '<div class="grp-wrap">'
+        for grp, teams in group_standings.items():
+            grp_html += f'''
+            <div class="grp-card">
+              <div class="grp-title">Group {grp}</div>
+              <table class="grp-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th class="th-team">Team</th>
+                    <th>P</th>
+                    <th>W</th>
+                    <th>D</th>
+                    <th>L</th>
+                    <th>GD</th>
+                    <th>Pts</th>
+                  </tr>
+                </thead>
+                <tbody>'''
+            for i, (team, row) in enumerate(teams):
+                qualify_cls = "grp-qualify" if i < 2 else ""
+                pos_cls = f"gp{i+1}" if i < 2 else ""
+                gd = f"+{row['GD']}" if row['GD'] > 0 else str(row['GD'])
+                grp_html += f'''
+                  <tr class="{qualify_cls}">
+                    <td class="grp-pos {pos_cls}">{i+1}</td>
+                    <td class="td-team">{team}</td>
+                    <td>{row['P']}</td>
+                    <td>{row['W']}</td>
+                    <td>{row['D']}</td>
+                    <td>{row['L']}</td>
+                    <td>{gd}</td>
+                    <td class="td-pts">{row['Pts']}</td>
+                  </tr>'''
+            grp_html += '</tbody></table></div>'
+        grp_html += '</div>'
+        st.markdown(grp_html, unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="color:rgba(255,255,255,0.2);font-size:0.78rem;margin-bottom:12px">Group stage matches not started yet.</div>', unsafe_allow_html=True)
+
     st.markdown('<div class="s-head">Make a Prediction</div>', unsafe_allow_html=True)
 
     predictable = [m for m in matches if m["status"] in ("SCHEDULED", "TIMED", "IN_PLAY", "PAUSED")]
@@ -776,9 +929,11 @@ with col_l:
 
 with col_r:
     st.markdown('<div class="s-head">All Matches</div>', unsafe_allow_html=True)
+
     if st.button("↺ Refresh scores", key="rb"):
         st.cache_data.clear()
         st.rerun()
+
     STAGE_ORDER = ["GROUP_STAGE", "ROUND_OF_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "THIRD_PLACE", "FINAL"]
     STAGE_LABELS = {
         "GROUP_STAGE": "Group Stage",
