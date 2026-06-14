@@ -779,10 +779,6 @@ with col_r:
     if st.button("↺ Refresh scores", key="rb"):
         st.cache_data.clear()
         st.rerun()
-
-    for m in matches:
-        st.write(f"{m['home']} vs {m['away']} — ID: {m['id']}")
-    
     STAGE_ORDER = ["GROUP_STAGE", "ROUND_OF_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "THIRD_PLACE", "FINAL"]
     STAGE_LABELS = {
         "GROUP_STAGE": "Group Stage",
