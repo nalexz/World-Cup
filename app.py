@@ -8,9 +8,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CSS
-# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
@@ -501,18 +498,10 @@ COLORS = {
 }
 RANK_CLS = ["n1", "n2", "n3", ""]
 RANK_SYMS = ["1", "2", "3", "4"]
-DATA_FILE = "data.json"   # only used for local dev fallback
+DATA_FILE = "data.json"
 API_BASE = "https://api.football-data.org/v4"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PERSISTENT STORAGE VIA GITHUB GIST
-# Reads GIST_ID and GITHUB_TOKEN from st.secrets (set these in Streamlit Cloud
-# settings) or from environment variables (for local dev).
-# The Gist must contain a file called data.json.
-# ─────────────────────────────────────────────────────────────────────────────
-
 def _gist_creds():
-    """Return (gist_id, token) from st.secrets or env."""
     try:
         gist_id = st.secrets["GIST_ID"]
         token   = st.secrets["GITHUB_TOKEN"]
@@ -522,7 +511,6 @@ def _gist_creds():
     return gist_id.strip(), token.strip()
 
 def load():
-    """Load predictions from GitHub Gist, falling back to local file."""
     gist_id, token = _gist_creds()
     empty = {"predictions": {}, "points": {p: 0 for p in PLAYERS}}
 
@@ -531,7 +519,7 @@ def load():
             r = requests.get(
                 f"https://api.github.com/gists/{gist_id}",
                 headers={
-                    "Authorization": f"token {token}",
+                    "Authorization": f"Bearer {token}",
                     "Accept": "application/vnd.github+json",
                 },
                 timeout=10,
@@ -544,14 +532,12 @@ def load():
         except Exception as e:
             st.warning(f"Gist load error: {e}, using local fallback.")
 
-    # Local fallback (works in VS Code / local dev even without Gist creds)
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE) as f:
             return json.load(f)
     return empty
 
 def save(d):
-    """Save predictions to GitHub Gist (cloud) and local file (local dev)."""
     gist_id, token = _gist_creds()
     payload = json.dumps(d, indent=2)
 
@@ -560,15 +546,14 @@ def save(d):
             r = requests.patch(
                 f"https://api.github.com/gists/{gist_id}",
                 headers={
-                    "Authorization": f"token {token}",
+                    "Authorization": f"Bearer {token}",
                     "Accept": "application/vnd.github+json",
-                    "Content-Type": "application/json",
                 },
-                data=json.dumps({
+                json={
                     "files": {
                         "data.json": {"content": payload}
                     }
-                }),
+                },
                 timeout=10,
             )
             if r.status_code not in (200, 201):
@@ -576,11 +561,8 @@ def save(d):
         except Exception as e:
             st.warning(f"Gist save error: {e}.")
 
-    # Always keep a local copy too (harmless in cloud, useful locally)
     with open(DATA_FILE, "w") as f:
         f.write(payload)
-
-# ─────────────────────────────────────────────────────────────────────────────
 
 if "selected_match_id" not in st.session_state:
     st.session_state.selected_match_id = None
@@ -671,7 +653,6 @@ def recalc(data, matches):
     data["points"] = totals
 
 def build_group_standings(matches):
-    """Build group standings from finished match results."""
     groups = {}
     for m in matches:
         grp = m.get("group")
@@ -699,7 +680,6 @@ def build_group_standings(matches):
                     row["Pts"] += 1
                 else:
                     row["L"] += 1
-    # Sort each group by Pts desc, then GD desc, then GF desc
     sorted_groups = {}
     for grp, teams in sorted(groups.items()):
         sorted_groups[grp] = sorted(
